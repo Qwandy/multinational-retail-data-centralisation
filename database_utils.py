@@ -40,6 +40,10 @@ class DatabaseConnector():
         # push dataframe to database
         df.to_sql(table_name, db_engine, if_exists = 'replace')
 
+if __name__ == "__main__":
+
+    connector = DatabaseConnector()
+
 
 
 

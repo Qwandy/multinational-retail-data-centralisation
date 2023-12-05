@@ -1,3 +1,7 @@
 db_creds.yaml
 db_creds_local.yaml
 /__pycache__
+card_details.pdf
+cert_key.pem
+date_times.json
+products.csv

@@ -2,6 +2,9 @@ import pandas as pd
 import database_utils as db_u
 from sqlalchemy import inspect
 import tabula as tb
+import requests as rq
+import json
+import boto3
 
 
 class DataExtractor():
@@ -11,10 +14,10 @@ class DataExtractor():
         pass
         return
     
-    def list_db_tables(self):
+    def list_db_tables(self, db_yaml):
         
         #initialise Database Connector
-        my_db_conn = db_u.DatabaseConnector('db_creds.yaml')
+        my_db_conn = db_u.DatabaseConnector(db_yaml)
 
         #Initialise engine using init_db_engine method from database_utils.py
         db_engine = my_db_conn.init_db_engine()
@@ -40,34 +43,63 @@ class DataExtractor():
     def retrieve_pdf_data(self, link):
         
         dfs = tb.read_pdf(link, stream = True, pages = 'all')
-        
-        return dfs
+        result_pdf_data = pd.concat(dfs[:])
+        return result_pdf_data
     
+    def list_number_of_stores(self, my_endpoint, certification):
+        
+        number_of_stores = rq.get(my_endpoint, headers = certification)
+
+        return number_of_stores
+    
+    def retrieve_stores_data(self):
+        
+        # An integer which contains the number of stores, attained using the list_number_of_stores method.
+        num_stores = self.list_number_of_stores('https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores',
+                                                {'x-api-key': 'yFBQbwXe9J3sd6zWVAMrK6lcxxr0q1lr2PT6DDMX'}).json()['number_stores']
+        
+        # An empty dictionary to append values obtained using request
+        request_dictionary = {"index": [], 'address': [], 'longitude': [], 'lat': [], 'locality': [],
+                              'store_code': [], 'staff_numbers': [], 'opening_date': [], 'store_type': [],
+                              'latitude': []}
+        
+        # A loop to go through all of the stores
+        for i in list(range(num_stores)):
+            
+            # Initialising a temporary dictionary with all the stores details of a store with number i
+            temp_dictionary = rq.get(f'https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/{i}',
+                       headers = {'x-api-key': 'yFBQbwXe9J3sd6zWVAMrK6lcxxr0q1lr2PT6DDMX'}).json()
+
+            # Another loop which loops through dictionary keys in the request dictionary and appends the 
+            # value for that key
+            for k in request_dictionary.keys():
+                try:
+                    request_dictionary[k].append(temp_dictionary[k])
+                except KeyError:
+                    continue
+        # Creates the dataframe using the request dictionary and drops the index column
+        store_data = pd.DataFrame.from_dict(request_dictionary)
+        store_data = pd.DataFrame.from_dict(request_dictionary).drop('index', axis = 1)
+
+        return store_data
+        
+    def extract_from_s3(self, address, file = None):
+        s3 = boto3.client('s3')
+        
+        # Conditional for downloading product data
+        if file == 'products':
+            s3.download_file(address[8:27], address[26:38], 'products.csv')
+            df = pd.read_csv('products.csv')
+        # Conditional for downloading date_time data
+        elif file == 'date_times':
+            s3.download_file(address[8:28], address[56:73], 'date_times.json')
+            df = pd.read_json('date_times.json')
+        return df
 
 
-
-
-
-
-
-
-my_db_conn = db_u.DatabaseConnector('db_creds.yaml')
-my_db_extractor = DataExtractor()
-pdf_data = my_db_extractor.retrieve_pdf_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
-print(pdf_data)
-#Setting a variable to None so I can overwrite it with the name of the user table
-user_table_name = None
-
-#A loop to find the name of the user table since it isn't just called 'user'
-#for i in my_db_extractor.list_db_tables():
-#    if 'user' in i:
-#        user_table_name = i
-
-#Creating a pandas dataframe for the user table
-#user_table = my_db_extractor.read_rds_table(my_db_conn, user_table_name)
-
-
-#print(user_table.isnull().sum())
+if __name__ == "__main__":
+    
+    my_extractor = DataExtractor()
 
 
         
