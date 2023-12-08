@@ -5,6 +5,7 @@ import tabula as tb
 import requests as rq
 import json
 import boto3
+import data_cleaning as dc
 
 
 class DataExtractor():
@@ -61,7 +62,7 @@ class DataExtractor():
         # An empty dictionary to append values obtained using request
         request_dictionary = {"index": [], 'address': [], 'longitude': [], 'lat': [], 'locality': [],
                               'store_code': [], 'staff_numbers': [], 'opening_date': [], 'store_type': [],
-                              'latitude': []}
+                              'latitude': [], 'country_code': [], 'continent': []}
         
         # A loop to go through all of the stores
         for i in list(range(num_stores)):
@@ -77,6 +78,7 @@ class DataExtractor():
                     request_dictionary[k].append(temp_dictionary[k])
                 except KeyError:
                     continue
+
         # Creates the dataframe using the request dictionary and drops the index column
         store_data = pd.DataFrame.from_dict(request_dictionary)
         store_data = pd.DataFrame.from_dict(request_dictionary).drop('index', axis = 1)
@@ -100,6 +102,10 @@ class DataExtractor():
 if __name__ == "__main__":
     
     my_extractor = DataExtractor()
-
+    my_cleaner = dc.DataCleaning()
+    stores_data = my_extractor.retrieve_stores_data()
+    database_connector = db_u.DatabaseConnector('db_creds_local.yaml')
+    stores_data = my_cleaner.clean_store_data(stores_data)
+    database_connector.upload_to_db(stores_data, 'dim_store_details')
 
         

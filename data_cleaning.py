@@ -86,15 +86,15 @@ class DataCleaning():
         card_data = card_data.loc[card_data['expiry_date'] != None]
 
         # Drop rows where card number is greather than 16 or less than than 19
-        card_data = card_data.loc[card_data['card_number'].str.len() > 16]
-        card_data = card_data.loc[card_data['card_number'].str.len() < 19]
+        card_data = card_data.loc[card_data['card_number'].str.len() >= 16]
+        card_data = card_data.loc[card_data['card_number'].str.len() <= 19]
         
         return card_data
     
     def clean_store_data(self, df):
         
         # Drop latitude column since most of it is N/A or None, and should be latitude column anyway?
-        df = df.drop('lat', axis = 1)
+        df = df.drop(columns = ['lat'])
         
         # Doing some string formatting to make it cleaner
         df['address'] = df['address'].str.replace('\n', ' ')
@@ -108,6 +108,11 @@ class DataCleaning():
 
         # Dropping rows where store_type is not web_portal, local or super store
         df = df[df["store_type"].str.contains("Web Portal|Local|Super Store")]
+
+        # Replaces strings in staff_numbers where it contains letters
+        df['staff_numbers'] = df['staff_numbers'].str.replace('e', '')
+        df['staff_numbers'] = df['staff_numbers'].str.replace('A', '')
+        df['staff_numbers'] = df['staff_numbers'].str.replace('n', '')
 
         return df
     
@@ -194,7 +199,18 @@ class DataCleaning():
     def clean_orders_data(self, df):
         
         # Dropping level_0 column because it is a repeat of index, first_name, last_name and 1
-        df = df.drop(columns = ['level_0', 'first_name', 'last_name', '1'])
+        df = df.drop(labels = ['level_0', 'first_name', 'last_name', '1'], axis = 1)
+
+        # To make orders data card_number column consistent with dim_card_details I need to 
+        # perform the same data cleaning
+
+         # Drop rows where card_number or expiry date are Nones
+        df = df.loc[df['card_number'] != None]
+        #print(type(df['card_number'][1]))
+
+        # Drop rows where card number is greather than 16 or less than than 19
+        df = df.loc[df['card_number'].str.len() >= 16]
+        df = df.loc[df['card_number'].str.len() <= 19]
 
         return df
 
@@ -214,5 +230,46 @@ class DataCleaning():
         return df
 
 if __name__ == "__main__":
-    data_extractor = de.DataExtractor()
-   
+    #data_cleaner = DataCleaning()
+    #data_connector = db_u.DatabaseConnector('db_creds_local.yaml')
+    #clean_card_data = data_cleaner.clean_card_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
+    #data_connector.upload_to_db(clean_card_data, 'dim_card_details')
+
+    def data_to_db(type = None, to_return = False):
+        data_extractor = de.DataExtractor()
+        data_cleaner = DataCleaning()
+        data_connector = db_u.DatabaseConnector('db_creds_local.yaml')
+        data_connector_external = db_u.DatabaseConnector('db_creds.yaml')
+
+        if type == 'card':
+            if to_return == True:
+                df_cards = data_extractor.retrieve_pdf_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
+                df_cards.to_csv('card_data.csv')
+            else:
+                clean_card_data = data_cleaner.clean_card_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
+                data_connector.upload_to_db(clean_card_data, 'dim_card_details')
+
+        elif type == 'date_times':
+            df_date_times = data_extractor.extract_from_s3('https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json.', file = 'date_times')
+            clean_date_times = data_cleaner.clean_date_times(df_date_times)
+            data_connector.upload_to_db(clean_date_times, 'dim_date_times')
+        elif type == 'products':
+            df_products = data_extractor.extract_from_s3('s3://data-handling-public/products.csv', file = 'products')
+            clean_products = data_cleaner.clean_products_data(df_products)
+            data_connector.upload_to_db(clean_products, 'dim_products')
+        elif type == 'store':
+            df_store = data_extractor.retrieve_stores_data()
+            clean_store_data = data_cleaner.clean_store_data(df_store)
+            data_connector.upload_to_db(clean_store_data, 'dim_store_details')
+        elif type == 'users':
+            clean_user_data = data_cleaner.clean_user_data()
+            data_connector.upload_to_db(clean_user_data)
+        elif type == 'orders':
+            df_orders = data_extractor.read_rds_table(data_connector_external, 'orders_table')
+            df_orders['card_number'] = df_orders['card_number'].astype(str)
+            clean_orders = data_cleaner.clean_orders_data(df_orders)
+            data_connector.upload_to_db(clean_orders, 'orders_table')
+    
+    data_to_db(type = 'card')
+    data_to_db(type = 'orders')
+    
