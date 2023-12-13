@@ -1,10 +1,11 @@
 ALTER TABLE IF EXISTS orders_table
 ALTER COLUMN date_uuid TYPE uuid USING date_uuid::uuid,
-ALTER COLUMN user_uuid TYPE uuid USING date_uuid::uuid,
+ALTER COLUMN user_uuid TYPE uuid USING user_uuid::uuid,
 ALTER COLUMN card_number TYPE VARCHAR(19),
 ALTER COLUMN store_code TYPE VARCHAR(12),
 ALTER COLUMN product_code  TYPE VARCHAR(11),
 ALTER COLUMN product_quantity TYPE SMALLINT;
+
 
 ALTER TABLE IF EXISTS dim_users
 ALTER COLUMN first_name TYPE VARCHAR(255),
@@ -25,18 +26,27 @@ ALTER COLUMN country_code TYPE VARCHAR(2),
 ALTER COLUMN continent TYPE VARCHAR(255),
 ALTER COLUMN store_type TYPE VARCHAR(255);
 
+
 UPDATE dim_products SET product_price = REPLACE(product_price, '£', '');
 
 ALTER TABLE IF EXISTS dim_products
 ADD COLUMN IF NOT EXISTS weight_class varchar(15);
 
-SELECT weight_in_kg,
-	CASE WHEN weight_in_kg < 2 THEN 'Light'
-		 WHEN weight_in_kg >= 2 AND weight_in_kg < 40 THEN 'Mid_Sized'
-		 WHEN weight_in_kg >= 40 AND weight_in_kg < 140 THEN 'Heavy'
-		 ELSE 'Truck_Required'
-	END AS weight_class
-FROM dim_products;
+UPDATE dim_products
+SET weight_class = 'Light' 
+WHERE weight_in_kg < 2;
+
+UPDATE dim_products
+SET weight_class = 'Medium' 
+WHERE weight_in_kg >= 2 AND weight_in_kg < 40;
+
+UPDATE dim_products
+SET weight_class = 'HEAVY' 
+WHERE weight_in_kg >= 40 AND weight_in_kg < 140;
+
+UPDATE dim_products
+SET weight_class = 'Truck required' 
+WHERE weight_in_kg > 140;
 
 UPDATE 
    dim_products
@@ -53,7 +63,7 @@ ALTER TABLE dim_products
   
 ALTER TABLE IF EXISTS dim_products
 ALTER COLUMN product_price TYPE FLOAT USING product_price::double precision,
-ALTER COLUMN weight_in_kg TYPE FLOAT,
+ALTER COLUMN weight_in_kg TYPE FLOAT USING weight_in_kg::double precision,
 ALTER COLUMN "EAN" TYPE VARCHAR(20),
 ALTER COLUMN product_code TYPE VARCHAR(11),
 ALTER COLUMN date_added TYPE DATE USING date_added::DATE,
@@ -96,6 +106,10 @@ ALTER TABLE dim_users
 ADD PRIMARY KEY (user_uuid);
 
 ALTER TABLE orders_table
+      ADD CONSTRAINT fk_card_details FOREIGN KEY (card_number) 
+          REFERENCES dim_card_details (card_number);
+
+ALTER TABLE orders_table
       ADD CONSTRAINT fk_date_times FOREIGN KEY (date_uuid) 
           REFERENCES dim_date_times (date_uuid);
 		  
@@ -107,4 +121,9 @@ ALTER TABLE orders_table
       ADD CONSTRAINT fk_users FOREIGN KEY (user_uuid) 
           REFERENCES dim_users (user_uuid);
 		  
+ALTER TABLE orders_table
+      ADD CONSTRAINT fk_product_orders FOREIGN KEY (product_code) 
+          REFERENCES dim_products (product_code);
+		  
 SELECT * FROM orders_table
+
