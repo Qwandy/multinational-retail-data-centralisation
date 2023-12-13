@@ -4,16 +4,21 @@ from sqlalchemy import create_engine
 import pandas as pd
 
 class DatabaseConnector():
+    '''A class which handles the backend work for the databases. Makes SQLAlchemy engines and uploads
+    data to the database.'''
 
     def __init__(self, yaml_file):
         self.yaml_file = yaml_file
 
     def _read_db_creds(self):
+        '''Internal method for loading in credentials from a yaml file'''
         with open(self.yaml_file, 'r') as file:
             data = yaml.safe_load(file)
         return data
     
     def init_db_engine(self):
+        '''Initialises the sqlalchemy database engine'''
+
         #Return credentials to variable with _read_db_creds method
         db_creds = self._read_db_creds()
 
@@ -30,7 +35,8 @@ class DatabaseConnector():
         return engine
     
     def upload_to_db(self, df, table_name):
-        
+        '''Method for uploading dataframe to the database. Inputs are the dataframe, and a name for the table'''
+
         # initialise engine
         db_engine = self.init_db_engine()
 
@@ -40,9 +46,6 @@ class DatabaseConnector():
         # push dataframe to database
         df.to_sql(table_name, db_engine, if_exists = 'replace')
 
-if __name__ == "__main__":
-
-    connector = DatabaseConnector()
 
 
 

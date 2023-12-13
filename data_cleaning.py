@@ -6,11 +6,14 @@ import requests as rq
 
 
 class DataCleaning():
+    '''A class for performing all the data cleaning of the project.'''
 
     def __init__(self):
         pass
 
     def clean_user_data(self):
+        '''Method for extracting and cleaning user data. Takes no inputs.'''
+
         my_db_conn = db_u.DatabaseConnector('db_creds.yaml')
         my_db_extractor = de.DataExtractor()
 
@@ -19,7 +22,7 @@ class DataCleaning():
         user_table_name = None
 
         # A loop to find the name of the user table since it isn't just called 'user'
-        for i in my_db_extractor.list_db_tables():
+        for i in my_db_extractor.list_db_tables('db_creds.yaml'):
             if 'user' in i:
                 user_table_name = i
 
@@ -44,10 +47,14 @@ class DataCleaning():
                 continue
        
 
-        # Phone numbers are very inconsistent, fixing it here:
-        
+        # There is an outlier where 'GB' is 'GGB', fixing it here
+        user_table = user_table.replace('GGB', 'GB')
+
         #list of country codes
         country_codes = ['DE', 'GB', 'US']
+
+        # Filtering dataframe to rows where the country code is one of the above country codes
+        user_table = user_table[user_table['country_code'].isin(country_codes)]
 
         # loop which iterates through country_codes list and removes country code prefix (i.e +44), brackets
         # and spaces to make phone numbers consistent.
@@ -58,9 +65,6 @@ class DataCleaning():
             user_table['phone_number'][user_table.country_code == code] = user_table['phone_number'][user_table.country_code == code].str.replace(' ', '')
 
 
-        # Removing rows where the phone number is not 11 characters
-        user_table = user_table[user_table['phone_number'].str.len() == 11]
-
         # Converting date of birth and join date columns to datetimes
         user_table['date_of_birth'] = pd.to_datetime(user_table['date_of_birth'], format='mixed')
         user_table['join_date'] = pd.to_datetime(user_table['join_date'], format='mixed')
@@ -70,29 +74,36 @@ class DataCleaning():
 
         return user_table
     
+
     def clean_card_data(self, link):
-        
+        '''Method for cleaning card data. Takes a URL for where the data is stored as an input
+        '''
         # Initialise extractor class
         extractor = de.DataExtractor()
 
         # Retrieve pandas dataframe of pdf link
         card_data = extractor.retrieve_pdf_data(link)
 
-        # Drop columns that tabular read_pdf method created which are full of NaNs
-        card_data = card_data.drop(labels = ['card_number expiry_date', 'Unnamed: 0'], axis = 1)
+        # Remove '?' character from card numbers
+        card_data = card_data.replace('\?', '', regex = True)
 
-        # Drop rows where card_number or expiry date are Nones
-        card_data = card_data.loc[card_data['card_number'] != None]
-        card_data = card_data.loc[card_data['expiry_date'] != None]
-
-        # Drop rows where card number is greather than 16 or less than than 19
-        card_data = card_data.loc[card_data['card_number'].str.len() >= 16]
-        card_data = card_data.loc[card_data['card_number'].str.len() <= 19]
+        # A list of legit card providers in the dataset to filter out random rows with 
+        # card_numbers / providers like 'ALSK3123ASD'
+        legit_providers = ['Diners Club / Carte Blanche', 'American Express', 'JCB 16 digit',
+        'JCB 15 digit', 'Maestro', 'Mastercard', 'Discover', 'VISA 19 digit',
+        'VISA 16 digit', 'VISA 13 digit']
         
+        # Filtering the data to the legitimate card providers
+        card_data = card_data[card_data['card_provider'].isin(legit_providers)]
+
+        # Dropping NULL rows
+        card_data = card_data.dropna()
+
         return card_data
     
     def clean_store_data(self, df):
-        
+        '''Method for cleaning store data. Takes in a dataframe as input'''
+
         # Drop latitude column since most of it is N/A or None, and should be latitude column anyway?
         df = df.drop(columns = ['lat'])
         
@@ -103,80 +114,105 @@ class DataCleaning():
         # Changing opening dates to date_times
         df['opening_date'] = pd.to_datetime(df['opening_date'], format='mixed', errors = 'coerce')
 
+        # Adding data to web portal row so it isn't dropped with dropna
+        df.at[0,'address']='online'
+        df.at[0,'longitude']='0.00'
+        df.at[0,'locality']='online'
+        df.at[0,'latitude']='0.00'
+        
         # Invalid datetimes are changed to 'NaT' so I will drop those rows
         df = df.dropna()
 
         # Dropping rows where store_type is not web_portal, local or super store
-        df = df[df["store_type"].str.contains("Web Portal|Local|Super Store")]
+        df = df[df["store_type"].str.contains("Web Portal|Local|Super Store|Outlet|Mall Kiosk")]
 
         # Replaces strings in staff_numbers where it contains letters
         df['staff_numbers'] = df['staff_numbers'].str.replace('e', '')
         df['staff_numbers'] = df['staff_numbers'].str.replace('A', '')
         df['staff_numbers'] = df['staff_numbers'].str.replace('n', '')
+        df['staff_numbers'] = df['staff_numbers'].str.replace('J', '')
+        df['staff_numbers'] = df['staff_numbers'].str.replace('R', '')
 
         return df
     
     def convert_kg_to_kg(self, df):
-        
-        df['weight (kg)'] = df['weight (kg)'].where(df['weight (kg)'][-2:] == 'kg',
-                                                     df['weight (kg)'].str.replace('kg', ''), axis = 0)
+        '''Method used in clean_product_data which strips kg substring from row values containing kg substring.
+        Takes in a dataframe as input.'''
+
+        # Replacing 'kg' with an empty string
+        df['weight_in_kg'] = df['weight_in_kg'].where(df['weight_in_kg'][-2:] == 'kg',
+                                                     df['weight_in_kg'].str.replace('kg', ''), axis = 0)
 
         return df
     
     def convert_units_to_kg(self, df):
+        '''Method used in clean_product_data which strips (g, ml, oz) substrings from weight column
+        and performs arithmetic calculations to convert those units to kg. Takes in a dataframe as input.'''
 
+        # A tuple of numbers to check valid entries
+        num_list = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
         try:
-            for i in range(len(df['weight (kg)'])):
-                if df['weight (kg)'][i].endswith('g'):
-                    df['weight (kg)'][i] = df['weight (kg)'][i].replace('g', '')
-                    df['weight (kg)'][i] = float(df['weight (kg)'][i])
-                    df['weight (kg)'][i] = round(df['weight (kg)'][i] / 1000, 4)
-                elif df['weight (kg)'][i].endswith('ml'):
-                    df['weight (kg)'][i] = df['weight (kg)'][i].replace('ml', '')
-                    df['weight (kg)'][i] = float(df['weight (kg)'][i])
-                    df['weight (kg)'][i] = round(df['weight (kg)'][i] / 1000, 4)
-                elif df['weight (kg)'][i].endswith('oz'):
-                    df['weight (kg)'][i] = df['weight (kg)'][i].replace('oz', '')
-                    df['weight (kg)'][i] = float(df['weight (kg)'][i])
-                    df['weight (kg)'][i] = round(df['weight (kg)'][i] * 0.283, 4)
-                else:
-                    df = df.drop(i)
-                
-
+            for i in range(len(df['weight_in_kg'])):
+                if df['weight_in_kg'][i].endswith(num_list):
+                    continue
+                elif df['weight_in_kg'][i].endswith('g'):
+                    df['weight_in_kg'][i] = df['weight_in_kg'][i].replace('g', '')
+                    df['weight_in_kg'][i] = float(df['weight_in_kg'][i])
+                    df['weight_in_kg'][i] = round(df['weight_in_kg'][i] / 1000, 4)
+                elif df['weight_in_kg'][i].endswith('ml'):
+                    df['weight_in_kg'][i] = df['weight_in_kg'][i].replace('ml', '')
+                    df['weight_in_kg'][i] = float(df['weight_in_kg'][i])
+                    df['weight_in_kg'][i] = round(df['weight_in_kg'][i] / 1000, 4)
+                elif df['weight_in_kg'][i].endswith('oz'):
+                    df['weight_in_kg'][i] = df['weight_in_kg'][i].replace('oz', '')
+                    df['weight_in_kg'][i] = float(df['weight_in_kg'][i])
+                    df['weight_in_kg'][i] = round(df['weight_in_kg'][i] * 0.283, 4)
+            
+        # Except to allow code to continue running if error encountered
         except KeyError:
             print(f"an error occured at key {i}")
+
         return df
     
     
     
     def convert_product_weights(self, df):
-        
+        '''Does additional data manipulation and cleaning. Takes in a dataframe as input.'''
+
         # Renaming column because i'm standardising units for row values
-        df = df.rename(columns = {'weight': 'weight (kg)'})
+        df = df.rename(columns = {'weight': 'weight_in_kg'})
 
         # Dropping NaN values because they will mess with the loops I run later
         df = df.dropna()
 
+        # Correcting for rows where products are multipacks as they will break my loop
+        df.loc[df['weight_in_kg'].str.contains('12 x 100'), 'weight_in_kg'] = '1.200'
+        df.loc[df['weight_in_kg'].str.contains('8 x 150'), 'weight_in_kg'] = '1.200'
+        df.loc[df['weight_in_kg'].str.contains('6 x 412'), 'weight_in_kg'] = '2.472'
+        df.loc[df['weight_in_kg'].str.contains('6 x 400'), 'weight_in_kg'] = '2.400'
+        df.loc[df['weight_in_kg'].str.contains('8 x 85'), 'weight_in_kg'] = '0.68'
+        df.loc[df['weight_in_kg'].str.contains('40 x 100'), 'weight_in_kg'] = '4.00'
+        df.loc[df['weight_in_kg'].str.contains('12 x 85'), 'weight_in_kg'] = '1.020'
+        df.loc[df['weight_in_kg'].str.contains('3 x 2'), 'weight_in_kg'] = '0.006'
+        df.loc[df['weight_in_kg'].str.contains('g .'), 'weight_in_kg'] = '0.077'
+        df.loc[df['weight_in_kg'].str.contains('3 x 90'), 'weight_in_kg'] = '0.27'
+        df.loc[df['weight_in_kg'].str.contains('16 x 10'), 'weight_in_kg'] = '1.6'
+        df.loc[df['weight_in_kg'].str.contains('3 x 132'), 'weight_in_kg'] = '0.394'
+        df.loc[df['weight_in_kg'].str.contains('5 x 145'), 'weight_in_kg'] = '0.725'
+        df.loc[df['weight_in_kg'].str.contains('4 x 400'), 'weight_in_kg'] = '1.6'
+        df.loc[df['weight_in_kg'].str.contains('2 x 200'), 'weight_in_kg'] = '0.4'
+        
+        # Creating a list of legitimate categories
+        category_list = ['toys-and-games', 'sports-and-leisure', 'pets', 'homeware', 'health-and-beauty',
+                         'food-and-drink', 'diy']
+        
+        # Using pd isin to filter rows with only legitimate categories to remove rows containing
+        # entries such as 'C3NCA2CL35'
+        df = df[df['category'].isin(category_list)]
+
         # Resetting index after dropping NaN values
         df = df.reset_index(drop=True)
-        
-        # Correcting for rows where products are multipacks as they will break my loop
-        df.loc[df['weight (kg)'].str.contains('12 x 100'), 'weight (kg)'] = '1.200'
-        df.loc[df['weight (kg)'].str.contains('8 x 150'), 'weight (kg)'] = '1.200'
-        df.loc[df['weight (kg)'].str.contains('6 x 412'), 'weight (kg)'] = '2.472'
-        df.loc[df['weight (kg)'].str.contains('6 x 400'), 'weight (kg)'] = '2.400'
-        df.loc[df['weight (kg)'].str.contains('8 x 85'), 'weight (kg)'] = '0.68'
-        df.loc[df['weight (kg)'].str.contains('40 x 100'), 'weight (kg)'] = '4.00'
-        df.loc[df['weight (kg)'].str.contains('12 x 85'), 'weight (kg)'] = '1.020'
-        df.loc[df['weight (kg)'].str.contains('3 x 2'), 'weight (kg)'] = '0.006'
-        df.loc[df['weight (kg)'].str.contains('g .'), 'weight (kg)'] = '0.077'
-        df.loc[df['weight (kg)'].str.contains('3 x 90'), 'weight (kg)'] = '0.27'
-        df.loc[df['weight (kg)'].str.contains('16 x 10'), 'weight (kg)'] = '1.6'
-        df.loc[df['weight (kg)'].str.contains('3 x 132'), 'weight (kg)'] = '0.394'
-        df.loc[df['weight (kg)'].str.contains('5 x 145'), 'weight (kg)'] = '0.725'
-        df.loc[df['weight (kg)'].str.contains('4 x 400'), 'weight (kg)'] = '1.6'
-        df.loc[df['weight (kg)'].str.contains('2 x 200'), 'weight (kg)'] = '0.4'
-        
+
         # Stripping rows which have 'kg' unit to be unitless
         df = self.convert_kg_to_kg(df)
 
@@ -186,90 +222,40 @@ class DataCleaning():
         return df
 
     def clean_products_data(self, df):
-        
+        '''Calls the convert_product weights function. This is the master method for cleaning product data,
+        and calls other methods for doing so. Takes in a dataframe as input.'''
+
+        # Calling method that converts all the units to standardise weight column
+        df = self.convert_product_weights(df)
+
         # Drops nan values
         df = df.dropna()
-
-        # Filters data to rows where the 'opening date' is in the correct format.
-        df = df.loc[df['date_added'].str.len() <= 10]
-
         
         return df
     
     def clean_orders_data(self, df):
-        
+        '''A method for cleaning orders data. Takes in a dataframe as input.'''
+
         # Dropping level_0 column because it is a repeat of index, first_name, last_name and 1
         df = df.drop(labels = ['level_0', 'first_name', 'last_name', '1'], axis = 1)
 
-        # To make orders data card_number column consistent with dim_card_details I need to 
-        # perform the same data cleaning
+        # Drop rows where card_number or expiry date are Nones
+        df = df.dropna()
 
-         # Drop rows where card_number or expiry date are Nones
-        df = df.loc[df['card_number'] != None]
-        #print(type(df['card_number'][1]))
-
-        # Drop rows where card number is greather than 16 or less than than 19
-        df = df.loc[df['card_number'].str.len() >= 16]
+        # Replace '?' in card number with empty string
+        df['card_number'] = df['card_number'].str.replace('?', '')
+        
+        # Make sure card number is between 14 and 
+        df = df.loc[df['card_number'].str.len() >= 14]
         df = df.loc[df['card_number'].str.len() <= 19]
-
+        
         return df
 
     def clean_date_times(self, df):
+        '''A method for cleaning date_times data. Takes in a dataframe as input.'''
 
         # Filtering dataframe for where month is valid, i.e 1 -> 12 NOT something like 'LZLLPZ0ZUA'
         df = df.loc[df['month'].str.len() <= 2]
 
-        
-        '''for col in df.columns:
-            print(df[col].unique())'''
-        
-        # By using the loop above (which is now commented out) it appears that all the rows with non-valid
-        # months/years/days/time_periods are for the same rows, so using the above .loc filter actually cleans
-        # all the data without needing to clean columns individually.
-
         return df
 
-if __name__ == "__main__":
-    #data_cleaner = DataCleaning()
-    #data_connector = db_u.DatabaseConnector('db_creds_local.yaml')
-    #clean_card_data = data_cleaner.clean_card_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
-    #data_connector.upload_to_db(clean_card_data, 'dim_card_details')
-
-    def data_to_db(type = None, to_return = False):
-        data_extractor = de.DataExtractor()
-        data_cleaner = DataCleaning()
-        data_connector = db_u.DatabaseConnector('db_creds_local.yaml')
-        data_connector_external = db_u.DatabaseConnector('db_creds.yaml')
-
-        if type == 'card':
-            if to_return == True:
-                df_cards = data_extractor.retrieve_pdf_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
-                df_cards.to_csv('card_data.csv')
-            else:
-                clean_card_data = data_cleaner.clean_card_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
-                data_connector.upload_to_db(clean_card_data, 'dim_card_details')
-
-        elif type == 'date_times':
-            df_date_times = data_extractor.extract_from_s3('https://data-handling-public.s3.eu-west-1.amazonaws.com/date_details.json.', file = 'date_times')
-            clean_date_times = data_cleaner.clean_date_times(df_date_times)
-            data_connector.upload_to_db(clean_date_times, 'dim_date_times')
-        elif type == 'products':
-            df_products = data_extractor.extract_from_s3('s3://data-handling-public/products.csv', file = 'products')
-            clean_products = data_cleaner.clean_products_data(df_products)
-            data_connector.upload_to_db(clean_products, 'dim_products')
-        elif type == 'store':
-            df_store = data_extractor.retrieve_stores_data()
-            clean_store_data = data_cleaner.clean_store_data(df_store)
-            data_connector.upload_to_db(clean_store_data, 'dim_store_details')
-        elif type == 'users':
-            clean_user_data = data_cleaner.clean_user_data()
-            data_connector.upload_to_db(clean_user_data)
-        elif type == 'orders':
-            df_orders = data_extractor.read_rds_table(data_connector_external, 'orders_table')
-            df_orders['card_number'] = df_orders['card_number'].astype(str)
-            clean_orders = data_cleaner.clean_orders_data(df_orders)
-            data_connector.upload_to_db(clean_orders, 'orders_table')
-    
-    data_to_db(type = 'card')
-    data_to_db(type = 'orders')
-    

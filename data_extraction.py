@@ -9,6 +9,9 @@ import data_cleaning as dc
 
 
 class DataExtractor():
+    '''A method for extracting all the data from various sources by making API calls and using boto3. Is able
+    to find all the tables stored within a database, read in RDS tables, retrieve and transform PDF data into
+    a pandas dataframe and can extract data from S3.'''
 
     #Initialise class
     def __init__(self):
@@ -16,7 +19,9 @@ class DataExtractor():
         return
     
     def list_db_tables(self, db_yaml):
-        
+        ''' Provides a list of the tables names in a database. Takes in a path to a yaml file as input, 
+        which should contain all data for initialising an engine.'''
+
         #initialise Database Connector
         my_db_conn = db_u.DatabaseConnector(db_yaml)
 
@@ -32,7 +37,9 @@ class DataExtractor():
         return table_names
     
     def read_rds_table(self, db_conn, table_name):
-        
+        '''Initialises an engine and reads an RDS sql table. Takes in an instance of the DataConnector class
+        and a table name string to read from the database.'''
+
         #Initialise engine for use in pd.read_sql_table()
         engine = db_conn.init_db_engine()
 
@@ -42,19 +49,28 @@ class DataExtractor():
         return the_table
     
     def retrieve_pdf_data(self, link):
+        '''Retrieves tabular data from a PDF file. Takes in a URL as input for the PDF.'''
+
+        # Tabular read_pdf method to turn pdf into pandas dataframe
+        dfs = tb.read_pdf(link, pages = 'all')
         
-        dfs = tb.read_pdf(link, stream = True, pages = 'all')
-        result_pdf_data = pd.concat(dfs[:])
+        # Concatenating all of the PDF pages into one big dataframe
+        result_pdf_data = pd.concat(dfs)
+        
         return result_pdf_data
     
     def list_number_of_stores(self, my_endpoint, certification):
-        
+        '''Returns an integer of how many stores there are in a stores table. Takes in a endpoint 
+        and api-key as input.'''
+
+        # Api call to check the number of stores
         number_of_stores = rq.get(my_endpoint, headers = certification)
 
         return number_of_stores
     
     def retrieve_stores_data(self):
-        
+        '''Retrieves stores data. Takes no input.'''
+
         # An integer which contains the number of stores, attained using the list_number_of_stores method.
         num_stores = self.list_number_of_stores('https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores',
                                                 {'x-api-key': 'yFBQbwXe9J3sd6zWVAMrK6lcxxr0q1lr2PT6DDMX'}).json()['number_stores']
@@ -81,16 +97,19 @@ class DataExtractor():
 
         # Creates the dataframe using the request dictionary and drops the index column
         store_data = pd.DataFrame.from_dict(request_dictionary)
-        store_data = pd.DataFrame.from_dict(request_dictionary).drop('index', axis = 1)
+        store_data = pd.DataFrame.from_dict(request_dictionary).drop('index', axis = 1) # Drop extra idx col
 
         return store_data
         
     def extract_from_s3(self, address, file = None):
+        '''Extracts products or date_times data from s3. Takes in a URL of where the data is,
+        and a file type string to specify what kind of file it is: either "product", or "date_times".'''
+
         s3 = boto3.client('s3')
         
         # Conditional for downloading product data
         if file == 'products':
-            s3.download_file(address[8:27], address[26:38], 'products.csv')
+            s3.download_file(address[5:25], address[26:38], 'products.csv')
             df = pd.read_csv('products.csv')
         # Conditional for downloading date_time data
         elif file == 'date_times':
@@ -98,14 +117,5 @@ class DataExtractor():
             df = pd.read_json('date_times.json')
         return df
 
-
-if __name__ == "__main__":
-    
-    my_extractor = DataExtractor()
-    my_cleaner = dc.DataCleaning()
-    stores_data = my_extractor.retrieve_stores_data()
-    database_connector = db_u.DatabaseConnector('db_creds_local.yaml')
-    stores_data = my_cleaner.clean_store_data(stores_data)
-    database_connector.upload_to_db(stores_data, 'dim_store_details')
 
         
