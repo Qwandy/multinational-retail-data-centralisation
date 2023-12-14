@@ -71,6 +71,7 @@ test_card_df = test_card_df.loc[test_card_df['card_number'].str.len() > 14]
 
 print(test_card_df)'''
 data_to_db(type = 'orders')
-data_to_db(type = 'users')
+data_to_db(type = 'products')
+#data_to_db(type = 'users')
 #store_data.to_csv('store_data.csv')
 #print('done')

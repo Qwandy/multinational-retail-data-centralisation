@@ -245,9 +245,9 @@ class DataCleaning():
         # Replace '?' in card number with empty string
         df['card_number'] = df['card_number'].str.replace('?', '')
         
-        # Make sure card number is between 14 and 
-        df = df.loc[df['card_number'].str.len() >= 14]
-        df = df.loc[df['card_number'].str.len() <= 19]
+        # Make sure card number is between 14 and 19
+        #df = df.loc[df['card_number'].str.len() >= 14]
+        #df = df.loc[df['card_number'].str.len() <= 19]
         
         return df
 
