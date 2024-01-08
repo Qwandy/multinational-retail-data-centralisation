@@ -107,13 +107,18 @@ class DataExtractor():
 
         s3 = boto3.client('s3')
         
+        # Address url variable array
+        address_arr = address.split('/')
+        address_header = address_arr[2]
+        address_pointer = address_arr[3]
+
         # Conditional for downloading product data
         if file == 'products':
-            s3.download_file(address[5:25], address[26:38], 'products.csv')
+            s3.download_file(address_header, address_pointer, 'products.csv')
             df = pd.read_csv('products.csv')
         # Conditional for downloading date_time data
         elif file == 'date_times':
-            s3.download_file(address[8:28], address[56:73], 'date_times.json')
+            s3.download_file(address_header, address_pointer, 'date_times.json')
             df = pd.read_json('date_times.json')
         return df
 
