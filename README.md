@@ -1,13 +1,13 @@
 # Multinational-retail-data-centralisation (MRDC)
 
 ## Table of Contents
-[Project Brief](#project-brief)
-[The Data](#the-data)
-[Project Dependencies](#project-brief)
-[Tools Used](#tools-used)
-[Installation](#installation-instructions)
-[License](#license)
-[Features](#features)
+- [Project Brief](#project-brief)
+- [The Data](#the-data)
+- [Project Dependencies](#project-brief)
+- [Tools Used](#tools-used)
+- [Installation](#installation-instructions)
+- [License](#license)
+- [Features](#features)
 
 ## Project Brief
 
