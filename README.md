@@ -34,9 +34,22 @@ The MRDC data is comprised of multiple tables relating to:
 ![Alt text](date_times_data.JPG)
 
 ## Project Dependencies
+To run this project, the following packages need to be installed (I have provided a requirements.txt file which can be used to install these)
+- Boto3 
+- Pandas 
+- SQLAlchemy 
+- PyYAML 
+
 
 ## Tools Used
+- [Boto3](https://aws.amazon.com/sdk-for-python/) to interface with AWS programmatically. From the [documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html):
+> You use the AWS SDK for Python (Boto3) to create, configure, and manage AWS services, such as Amazon Elastic  Compute Cloud (Amazon EC2) and Amazon Simple Storage Service (Amazon S3). The SDK provides an object-oriented API as well as low-level access to AWS services.
 
+
+- Pandas for housing and cleaning the extracted data.
+- SQLAlchemy for creating an engine that allows connecting to data sources for programmatic extraction.
+- PyYAML for creating files containing data necessary to create SQLAlchemy engines.
+- Requests for writing API calls that extract data.
 
 ## Installation instructions
 
