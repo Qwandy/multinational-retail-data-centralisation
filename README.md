@@ -1,5 +1,14 @@
 # Multinational-retail-data-centralisation (MRDC)
 
+## Table of Contents
+[Project Brief](#project-brief)
+[The Data](#the-data)
+[Project Dependencies](#project-brief)
+[Tools Used](#tools-used)
+[Installation](#installation-instructions)
+[License](#license)
+[Features](#features)
+
 ## Project Brief
 
 The aim of this project is to use various Python cloud tools and data extractors (such as Boto3, SQLAlchemy, tabular-py, json) to make my own OOP-based Python package for extracting and cleaning data and having the option to upload to a cloud database. I have achieved these aims and made a Python package with tools that can perform these tasks.
