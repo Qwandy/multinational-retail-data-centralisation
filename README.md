@@ -10,21 +10,27 @@ In this section I show the architecture of the various tables used in this proje
 
 The MRDC data is comprised of multiple tables relating to:
 - User data 
+
 ![Alt text](users_data.JPG)
 
 - Customer card details
+
 ![Alt text](card_data.JPG)
 
 - Store data
+
 ![Alt text](store_data.JPG)
 
 - Product data
+
 ![Alt text](products_data.JPG)
 
 - Orders data
+
 ![Alt text](orders_data.JPG)
 
 - Date times data
+
 ![Alt text](date_times_data.JPG)
 
 ## Project Dependencies
