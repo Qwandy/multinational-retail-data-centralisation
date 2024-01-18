@@ -58,7 +58,7 @@ To run this project, the following packages need to be installed (I have provide
 
 ## Installation instructions
 
-Clone the repo using `git clone https://github.com/Qwandy/multinational-retail-data-centralisation`, create a virtual environment using `python<version> -m venv <virtual-environment-name>`, activate it and then type `pip install -r requirements.txt` into your terminal to install the dependencies. This will give you functional access to the code. You should familiarise yourself with the methods in the python file if you wish to explore and use them in your own code. 'data_cleaning.py' contains the DataCleaning class, 'data_extraction.py' contains the DataExtractor class and 'database_utils.py' contains the DatabaseConnector class. You can import these py files to your own code to use the methods within the classes.
+Clone the repo using `git clone https://github.com/Qwandy/multinational-retail-data-centralisation`, create a virtual environment using `python<version> -m venv <virtual-environment-name>`, activate it and then type `pip install -r requirements.txt` into your terminal to install the dependencies. This will give you functional access to the code. You should familiarise yourself with the methods in the Python file if you wish to explore and use them in your own code. 'data_cleaning.py' contains the DataCleaning class, 'data_extraction.py' contains the DataExtractor class and 'database_utils.py' contains the DatabaseConnector class. You can import these py files to your own code to use the methods within the classes.
 
 ## License
 
