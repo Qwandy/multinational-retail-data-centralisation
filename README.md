@@ -13,6 +13,10 @@
 
 The aim of this project is to use various Python cloud tools and data extractors (such as Boto3, SQLAlchemy, tabular-py, json) to make my own OOP-based Python package for extracting and cleaning data and having the option to upload to a cloud database. I have achieved these aims and made a Python package with tools that can perform these tasks.
 
+## Architectural Diagram
+
+![Alt text](mrdc_arch_diagram.JPG)
+
 ## The Data
 
 In this section I show the architecture of the various tables used in this project for which I extracted the data. The tables show the format that the data came in and the changes I made to keep the data storage-efficient.
